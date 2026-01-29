@@ -4,77 +4,63 @@ from newspaper import Article
 import nltk
 import time
 
-# Essential NLTK setup for text extraction
+# Essential Setup
 @st.cache_resource
-def initialize_nltk():
+def setup_nltk():
     try:
         nltk.download('punkt')
         nltk.download('punkt_tab')
     except:
         pass
 
-initialize_nltk()
+setup_nltk()
 
 # Page Setup
-st.set_page_config(page_title="AI News Brief", page_icon="📰", layout="centered")
+st.set_page_config(page_title="AI Summary Tool", page_icon="📰")
 
-# Model Loading - Using DistilBART for efficiency and stability
+# LOAD ULTRA-LIGHTWEIGHT MODEL (T5-Small)
+# This model is tiny (about 240MB) compared to BART (1600MB).
 @st.cache_resource
-def load_nlp_model():
-    # Explicit task and model definition to prevent KeyErrors
-    return pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+def load_ai():
+    return pipeline("summarization", model="t5-small")
 
-summarizer = load_nlp_model()
+summarizer = load_ai()
 
-# Header
-st.title("📰 AI News Summarizer")
-st.write("Turn long news articles into quick, readable summaries using Transformer AI.")
+st.title("📰 Simple News Summarizer")
+st.write("A lightweight AI tool to summarize news articles quickly.")
 
-# User Input
-input_url = st.text_input("Paste the News URL here:", placeholder="https://www.bbc.com/news/...")
+# Input
+url = st.text_input("Paste News URL here:")
 
-if st.button("Generate Summary ✨"):
-    if input_url:
+if st.button("Summarize"):
+    if url:
         try:
-            with st.spinner('AI is reading the article...'):
+            with st.spinner('AI is processing...'):
                 start_time = time.time()
                 
-                # Step 1: Extract Article
-                article = Article(input_url)
+                # Fetch Article
+                article = Article(url)
                 article.download()
                 article.parse()
                 
-                if not article.text:
-                    st.error("Failed to extract text. Some websites block automated readers.")
+                # Memory Safety: Only take the first 2000 characters
+                text_to_summarize = article.text[:2000]
+                
+                if len(text_to_summarize) < 50:
+                    st.error("The article text is too short to summarize.")
                 else:
-                    # Step 2: Summarize (Truncate to 3000 chars to avoid memory issues)
-                    summary_result = summarizer(article.text[:3000], max_length=150, min_length=40, do_sample=False)
-                    summary_text = summary_result[0]['summary_text']
+                    # Summarize
+                    result = summarizer(text_to_summarize, max_length=100, min_length=30, do_sample=False)
+                    summary = result[0]['summary_text']
                     
-                    end_time = time.time()
-                    
-                    # Step 3: Display results
-                    st.divider()
-                    st.subheader(f"Title: {article.title}")
-                    
-                    if article.top_image:
-                        st.image(article.top_image, use_container_width=True)
-                    
-                    st.markdown(f"### AI Summary")
-                    st.success(summary_text)
+                    # Output
+                    st.subheader(article.title)
+                    st.success(summary)
                     
                     # Metrics
-                    st.divider()
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric("Original Words", len(article.text.split()))
-                    col2.metric("Summary Words", len(summary_text.split()))
-                    col3.metric("Time Taken", f"{round(end_time - start_time, 2)}s")
-
+                    st.info(f"Done in {round(time.time() - start_time, 2)} seconds.")
+                    
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error("The app ran into a small problem. Please try a different URL.")
     else:
-        st.warning("Please enter a valid URL first.")
-
-# Sidebar
-st.sidebar.title("About")
-st.sidebar.info("This app uses a Distilled BART model for high-speed abstractive summarization.")
+        st.warning("Please enter a URL first.")
